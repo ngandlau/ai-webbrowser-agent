@@ -1,0 +1,51 @@
+
+# project-specific
+playwright
+screenshots
+logs
+vimium
+.env
+*.jpg
+
+# Python
+*.pyc
+__pycache__/
+venv/
+*.env
+
+# macOS
+.DS_Store
+
+# Editors
+.vscode/
+.idea/
+
+# Build artifacts
+build/
+dist/
+
+# Compiled binaries or executables
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Logs and databases
+*.log
+*.db
+*.sqlite
+
+# OS generated files
+ehthumbs.db
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.swp
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# venv
+.venv/
+venv

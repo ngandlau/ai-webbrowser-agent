@@ -82,14 +82,14 @@ def parse_actor_response(text: str) -> tuple[str, str]:
     found_click_actions: list = re.findall(r'CLICK\("[a-zA-Z]+"\)', text)
     found_type_actions: list = re.findall(r'INPUT\("[a-zA-z0-9]+"\)', text)
     found_scroll_actions: list = re.findall(r'SCROLL\("[a-zA-z0-9]+"\)', text)
-    found_analyze_table_actions: list = re.findall(r'ANALYZE_TABLE\("([^"]*)"\)', text)
+    found_parse_table_data_actions: list = re.findall(r'PARSE_TABLE_DATA\("([^"]*)"\)', text)
 
     if len(found_answer_actions) > 1: raise ValueError(f"Found multiple ANSWER actions in response!")
     if len(found_click_actions) > 1: raise ValueError(f"Found multiple CLICK actions in response!")
     if len(found_type_actions) > 1: raise ValueError(f"Found multiple TYPE actions in response!")
     if len(found_scroll_actions) > 1: raise ValueError(f"Found multiple SCROLL actions in response!")
-    if len(found_analyze_table_actions) > 1: raise ValueError(f"Found multiple ANALYZE_TABLE actions in response!")
-    if not found_answer_actions and not found_click_actions and not found_type_actions and not found_scroll_actions and not found_analyze_table_actions: raise ValueError("No Action found in response!")
+    if len(found_parse_table_data_actions) > 1: raise ValueError(f"Found multiple PARSE_TABLE_DATA actions in response!")
+    if not found_answer_actions and not found_click_actions and not found_type_actions and not found_scroll_actions and not found_parse_table_data_actions: raise ValueError("No Action found in response!")
 
     if found_answer_actions:
         answer = found_answer_actions[0].split('\"')[1]
@@ -103,11 +103,11 @@ def parse_actor_response(text: str) -> tuple[str, str]:
     elif found_type_actions:
         text = found_type_actions[0].split('\"')[1]
         return ("INPUT", text)
-    elif found_analyze_table_actions:
-        match = re.search(r'ANALYZE_TABLE\("([^"]*)"\)', text)
+    elif found_parse_table_data_actions:
+        match = re.search(r'PARSE_TABLE_DATA\("([^"]*)"\)', text)
         if match:
             extracted_text = match.group(1)
-            return ("ANALYZE_TABLE", extracted_text)
+            return ("PARSE_TABLE_DATA", extracted_text)
     else:
         raise ValueError("No Action found in response!")
 

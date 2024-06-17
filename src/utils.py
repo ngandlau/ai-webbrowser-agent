@@ -15,6 +15,7 @@ import requests
 import vertexai
 from vertexai.generative_models import GenerativeModel, Part
 import google.generativeai as genai
+import yaml
 
 
 def get_next_screenshot_number(screenshot_dir: Path) -> str:
@@ -173,9 +174,9 @@ def get_gemini_observer_response(prompt: str, image_path: Path) -> str:
     response = model.generate_content([prompt, image_file], request_options={"timeout": 120})
     try:
         response_text = response.text
+        return response_text
     except ValueError as msg:
         raise ValueError(f"{msg}\n {response.candidates.safety_ratings}")
-    return response_text
 
 def get_gpt_actor_response(prompt: str, image_path: Path) -> str:
     user_message = create_user_message(prompt=prompt, image_paths=[image_path])
@@ -189,3 +190,21 @@ def log_response(logger, agent_type: str, prompt: str, response_text: str) -> No
     logger.info("-"*80)
     print(f"\n====== {agent_type} ======\n == PROMPT ==\n{prompt}\n== RESPONSE ==\n{response_text}\n")
     print("-"*80)
+
+def get_prompts(path: str | Path) -> dict:
+    """Opens and loads 'prompts.yaml' file"""
+    with open(path, "r") as f:
+        data = yaml.safe_load(f)
+        return DotDict(data)
+    
+class DotDict(dict):
+    """
+    If you wrap a Python dictionary with this class, e.g. DotDict(my_dict), it 
+    gives the dictionary the ability to be accessed via dot-notation, e.g.
+    my_dict.my_var instead of my_dict["myvar"]
+    """
+    def __getattr__(self, attr):
+        value = self.get(attr)
+        if isinstance(value, dict):
+            return DotDict(value)
+        return value

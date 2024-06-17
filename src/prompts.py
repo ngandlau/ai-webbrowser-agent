@@ -76,14 +76,4 @@ Description of clickable UI elements:
 """
 
 def get_gemini_observer_prompt(instructions: str):
-    return f"""\
-You are given an image of a webpage.\
-The user wants to extract information from the webpage that is relevant to solving the following task:
-Task: {instructions}\
-
-First, describe and summarize what is in the image. \
-If there is structured data, such as tables, timetables, or grids, provide a brief summary about what information they contain.\
-
-Second, think about whether there is structured data (for example, tables or timetables) that contain relevant information \
-for the user's task. If so, extract the data in a structured markdown format.\
-"""
+    return f"""Extract the data from the table in the image. Respond in a readable markdown format."""

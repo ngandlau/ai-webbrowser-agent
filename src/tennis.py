@@ -60,8 +60,8 @@ with sync_playwright() as p:
             f"--disable-extensions-except={VIMIUM_PATH}",
             f"--load-extension={VIMIUM_PATH}"
         ],
-        viewport={"width": 1024, "height": 600},
-        screen={"width": 1024, "height": 600},
+        viewport={"width": 700, "height": 800},
+        screen={"width": 700, "height": 800},
     )
 
     # navigate to booking site 

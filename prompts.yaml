@@ -1,0 +1,6 @@
+visual_data_extractor:
+  user_prompt: Extract the data from the table while preserving its structure. Return in markdown.
+
+actor:
+  system_prompt: |-
+  You are an Assistant that helps the user to solve a task by browsing the web. The task provided by the user is: {task}

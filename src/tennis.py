@@ -14,7 +14,7 @@ from vertexai.generative_models import GenerativeModel, Part
 import google.generativeai as genai
 
 
-from prompts import get_gemini_observer_prompt, get_observer_prompt, get_actor_prompt, answer_tool, click_tool, input_tool, scroll_tool, analyze_table_tool
+from prompts import get_gemini_observer_prompt, get_observer_prompt, get_actor_prompt, answer_tool, click_tool, input_tool, scroll_tool, parse_table_data_tool
 from utils import * 
 import history
 
@@ -30,7 +30,7 @@ VIMIUM_PATH = "vimium" # vimium must be downloaded via google-extension-download
 # OpenAI
 load_dotenv()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-client = OpenAI()
+client = OpenAI(api_key=OPENAI_API_KEY)
 
 # Google Gemini
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
@@ -39,7 +39,13 @@ genai.configure(api_key=GOOGLE_API_KEY)
 vertexai.init(project=PROJECT_ID, location="europe-central2")
 
 # user task
-task_description = "Which outside tennis courts are free for 1 hour today between 17:00 and 19:00"
+task_description = """Find and name outside tennis courts that are free for 1 hour today between 17:00 and 19:00. The process is described as follows:
+The video demonstrates the online booking process for a tennis court at the Sportclub SAFO Frankfurt e.V. 
+
+1. **Navigate to the "Freiplätze" (Available Courts) page:** The user starts on the homepage of the Sportclub SAFO Frankfurt e.V. and clicks on the "Freiplätze" tab in the top navigation bar.
+2. **View available time slots:** The "Freiplätze" page displays a calendar with available time slots for each tennis court (P1, P2, P3). The current date is selected, showing the available time slots for that day.
+3. **Select a time slot:** The user scrolls down to view the available time slots and clicks on the desired time slot, which is 18:00-18:30 on Court P1. 
+"""
 default_observer = "gpt"
 
 # tools for the actor
@@ -47,7 +53,7 @@ actor_tools = [
     scroll_tool,
     click_tool,
     input_tool,
-    analyze_table_tool,
+    parse_table_data_tool,
     answer_tool,
 ]
 
@@ -126,7 +132,7 @@ with sync_playwright() as p:
             page.evaluate("window.scrollBy(0, -600)")
     if action_type == input_tool.name:
         page.keyboard.type(action)
-    if action_type == analyze_table_tool.name:
+    if action_type == parse_table_data_tool.name:
         prompt = get_gemini_observer_prompt(instructions=action)
         response_text = get_gemini_observer_response(prompt=prompt, image_path=image_path)
         log_response(logger, agent_type="GEMINI OBSERVER", prompt=prompt, response_text=response_text)
@@ -188,7 +194,7 @@ with sync_playwright() as p:
             page.evaluate("window.scrollBy(0, -600)")
     if action_type == input_tool.name:
         page.keyboard.type(action)
-    if action_type == analyze_table_tool.name:
+    if action_type == parse_table_data_tool.name:
         prompt = get_gemini_observer_prompt(instructions=action)
         response_text = get_gemini_observer_response(prompt=prompt, image_path=image_path)
         log_response(logger, agent_type="GEMINI OBSERVER", prompt=prompt, response_text=response_text)
@@ -220,7 +226,7 @@ with sync_playwright() as p:
     
     #### ACTOR
     # pass the screenshot and the observer's observations to the actor LLM
-    response_text += f"""\n\nWebsite view:\nThe screenshot of the website does not show the full website. More information might be contained on the webpage when you scroll down or scroll up. You can scroll down by {scroll_info["scroll_amount_px"]} pixels."""
+    response_text += f"""\n\nWebsite view:\nThe screenshot of the website does not show the full website. More information might be contained on the webpage when you scroll down or scroll up. You can scroll down by {scroll_info["scroll_amount_px"]} pixels. Only scroll if you have not all infromation that you need to complete the task."""
     actor_prompt = get_actor_prompt(
         website_description=response_text,
         task_description=task_description,
@@ -251,7 +257,7 @@ with sync_playwright() as p:
             page.evaluate("window.scrollBy(0, -600)")
     if action_type == input_tool.name:
         page.keyboard.type(action)
-    if action_type == analyze_table_tool.name:
+    if action_type == parse_table_data_tool.name:
         prompt = get_gemini_observer_prompt(instructions=action)
         response_text = get_gemini_observer_response(prompt=prompt, image_path=image_path)
         log_response(logger, agent_type="GEMINI OBSERVER", prompt=prompt, response_text=response_text)
@@ -313,7 +319,7 @@ with sync_playwright() as p:
             page.evaluate("window.scrollBy(0, -600)")
     if action_type == input_tool.name:
         page.keyboard.type(action)
-    if action_type == analyze_table_tool.name:
+    if action_type == parse_table_data_tool.name:
         prompt = get_gemini_observer_prompt(instructions=action)
         response_text = get_gemini_observer_response(prompt=prompt, image_path=image_path)
         log_response(logger, agent_type="GEMINI OBSERVER", prompt=prompt, response_text=response_text)
@@ -376,7 +382,7 @@ with sync_playwright() as p:
             page.evaluate("window.scrollBy(0, -600)")
     if action_type == input_tool.name:
         page.keyboard.type(action)
-    if action_type == analyze_table_tool.name:
+    if action_type == parse_table_data_tool.name:
         prompt = get_gemini_observer_prompt(instructions=action)
         response_text = get_gemini_observer_response(prompt=prompt, image_path=image_path)
         log_response(logger, agent_type="GEMINI OBSERVER", prompt=prompt, response_text=response_text)

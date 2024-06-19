@@ -24,11 +24,11 @@ scroll_tool = Tool(
     description="Use this action to scroll the current webpage up or down to find relevant information",
     examples=['SCROLL("down")', 'SCROLL("up")'],
 )
-analyze_table_tool = Tool(
-    name="ANALYZE_TABLE",
+parse_table_data_tool = Tool(
+    name="PARSE_TABLE_DATA",
     args=[{"name": "description", "type": "string"}],
-    description="Use this action to analyze structured data such as tables, timetables, or grids. Describe the data and information you seek.",
-    examples=['ANALYZE_TABLE("Extract the price information from the table that contains information about the product.")'],
+    description="Everytime you are confronted by data in a table or timetable, use this action to parse structured data such as tables, timetables, or grids. Describe the data and information you seek. You response needs to start with: This is the parsed data in text format",
+    examples=['PARSE_TABLE_DATA("Extract the price information from the table that contains information about the product.")'],
 )
 
 def get_actor_prompt(
@@ -48,14 +48,17 @@ Here are the names and descriptions of the actions you can take:
 As input, you are given an image of the current webpage, \
 a description of the webpage, \
 a description of all clickable UI elements on the webpage, \
-and information about whether you can scroll down further on the webpage.
+potentially structured data in a text format, \
+and information about whether you can scroll down further on the webpage. \
+If you got any information that was parsed from structured data, make sure to use it to complete the task.
 
 {website_description}
 
 You need to respond in the following format:
 
 Thought: Your reasoning behind the action you are taking.
-Action: Your chosen action, should be one of {", ".join([tool.name for tool in tools])}. Only provide the action.
+Action: If another action is necessary, you can chose one of the following actions: {", ".join([tool.name for tool in tools])}. Only provide the action.
+Answer: If you found the answer to the task, provide the answer in the following format: This is the answer to the task: <answer>. Else provide the reason why you could not find the answer.
 """
 
 def get_observer_prompt() -> str:

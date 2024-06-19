@@ -2,6 +2,7 @@
 # project-specific
 playwright
 screenshots
+recordings
 logs
 vimium
 .env

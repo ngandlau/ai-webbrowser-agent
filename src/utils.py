@@ -50,9 +50,9 @@ def make_screenshot(page: Page, screenshot_dir: Path) -> Path:
     """Makes a screenshot of the current page and stores it in SCREENSHOT_DIRECTORY."""
     img_path = Path(
         screenshot_dir,
-        get_next_screenshot_number(screenshot_dir=screenshot_dir) + ".jpg",
+        get_next_screenshot_number(screenshot_dir=screenshot_dir) + ".jpeg",
     )
-    page.screenshot(path=img_path)
+    page.screenshot(path=img_path, type="jpeg")
     print(colored(f"\n<< screenshot saved to {img_path} >>\n", color="light_grey"))
     return img_path
 
@@ -296,68 +296,109 @@ class OpenAIDataTypes(Enum):
         return {dtype.name: dtype.value for dtype in OpenAIDataTypes}
     
 
-def convert_function_to_openai_tool_json_format(func: Callable) -> str:
-    """Converts a Python function into an OpenAI-formatted Assistant tool."""
-    properties = {} # the `properties` field for OpenAI formatted tools
+def convert_function_to_openai_tool(func):
     required = []
 
+    properties = {} 
     type_hints = get_type_hints(func, include_extras=True)
-    for param, hint in type_hints.items():
-        # check if the type hint of the argument has a standard type (int, str, float)
-        # without any Annotation[] or Optional[] hint.
-        if isinstance(hint, type):
-            dtype = OpenAIDataTypes.get_mapping()[hint.__name__]
-            description = ""
-            required.append(param)
-            properties[param] = {"type": dtype, "description": description}
-        # check if the type hint of the argument has an Optional[] hint.
-        elif hint.__name__ == "Optional":
-            dtype = OpenAIDataTypes.get_mapping()[hint.__args__[0].__name__]
-            description = ""
-            properties[param] = {"type": dtype, "description": description}
-        # check if the type hint of the argument has an Annotated[] hint.
-        elif isinstance(hint, _AnnotatedAlias):
+    for arg_name, type_hint in type_hints.items():
 
-            # get the description of the argument, if there is any
-            if hint.__metadata__: # the argument has a description
-                description = hint.__metadata__[0]
-                # If the description contains "IGNORE", we don't want 
-                # the parameter to be included in the tool description
-                # when passed to the LLM
-                if "IGNORE" in description:
-                    continue
-            else: # the argument does not have a description
-                description = ""
+        parameter = {}
+        description = None
 
-            # get the type of the argument, which could be wrapped inside an Optional[] hint
-            if hint.__origin__.__name__ == "Optional":
-                dtype = OpenAIDataTypes.get_mapping()[hint.__origin__.__args__[0].__name__]
+        # ignore return type if the function has any 
+        if arg_name == "return":
+            continue
+        
+        # Case: Annotated[..., ...]
+        if type_hint.__name__ == "Annotated":
+            description = type_hint.__metadata__[0]
+
+            # Case: Annotated[..., "IGNORE"]
+            if "IGNORE" in description:
+                continue
+            
+            # Case: Annotated[Optional[str], ...]
+            if type_hint.__origin__.__name__ == "Optional":
+                type_str = type_hint.__origin__.__args__[0].__name__
+
+                # Case: Annotated[Optional[Literal['a', 'b']]]
+                if type_str == "Literal":
+                    values = type_hint.__origin__.__args__[0].__args__
+                    # check if all values have the same type
+                    if not all([isinstance(value, type(values[0])) for value in values]):
+                        raise TypeError(f"Not all values of the Literal are of the same type, but must be: {values}")
+                    type_str = type(values[0]).__name__
+                    parameter["enum"] = list(values)
+
+            # Case: Annotated[Literal["a", "b"], ...]
+            elif type_hint.__origin__.__name__ == "Literal":
+                values = type_hint.__origin__.__args__[0].__args__
+                # check if all values have the same type
+                if not all([isinstance(value, type(values[0])) for value in values]):
+                    raise TypeError(f"Not all values of the Literal are of the same type, but must be: {values}")
+                type_str = type(values[0]).__name__
+                parameter["enum"] = list(values)
+                required.append(arg_name)
+
+            # Case: Annotated[str, ...]
             else:
-                dtype = OpenAIDataTypes.get_mapping()[hint.__origin__.__name__]
-                required.append(param)
+                type_str = type_hint.__origin__.__name__
+                required.append(arg_name)
 
-            properties[param] = {"type": dtype, "description": description}
-        elif isinstance(hint, _LiteralGenericAlias):
-            values = hint.__args__
-            # raise if not all values in side values have same type
-            if not all(isinstance(value, type(values[0])) for value in values):
-                raise ValueError(f"All values in {values} must have the same type.")
-            dtype = OpenAIDataTypes.get_mapping()[type(values[0]).__name__]
-            description = ""
-            required.append(param)
-            properties[param] = {"type": dtype, "enum": values, "description": description}
+        # Case: Literal["a", "b"]
+        elif type_hint.__name__ == "Literal":
+            values = type_hint.__args__
+            # check if all values have the same type
+            if not all([isinstance(value, type(values[0])) for value in values]):
+                raise TypeError(f"Not all values of the Literal are of the same type, but must be: {values}")
+            type_str = type(values[0]).__name__
+            parameter["enum"] = list(values)
+            required.append(arg_name) 
+
+        # Case: Optional[...]
+        elif type_hint.__name__ == "Optional":
+
+            # Case: Optional[Literal[...]]
+            if type_hint.__args__[0].__name__ == "Literal":
+                values = type_hint.__args__[0].__args__
+                # check if all values have the same type
+                if not all([isinstance(value, type(values[0])) for value in values]):
+                    raise TypeError(f"Not all values of the Literal are of the same type, but must be: {values}")
+                type_str = type(values[0]).__name__
+                parameter["enum"] = list(values)
+
+            # Case: Optional[str]
+            else:
+                type_str = type_hint.__args__[0].__name__
+        
+        # Case: str
         else:
-            raise ValueError(f"Unsupported type hint: {hint}")
+            type_str = type_hint.__name__
+            required.append(arg_name)
 
-    tool = {
+        if description:
+            # Case: Annotation[..., "IGNORE"]
+            if "IGNORE" in description:
+                continue
+            # Case: Annotation[..., ....]
+            parameter["description"] = description
+
+        try:
+            parameter["type"] = OpenAIDataTypes.get_mapping()[type_str]
+        except KeyError:
+            raise TypeError(f"Data type '{type_str}' of parameter '{arg_name}' is not a supported OpenAI data type!") 
+
+        properties[arg_name] = parameter
+    
+    tool_json = {
         "name": func.__name__,
-        "description": func.__doc__ if func.__doc__ else "",
+        "description": func.__doc__,
         "parameters": {
             "type": "object",
-            "properties": properties,
-            "required": required,
+            "properties": {param_name: param_properties
+                           for param_name, param_properties in properties.items()},
+            "required": required, 
         },
     }
-    return tool
-    # return json.dumps({"tools": [tool]}, indent=4)
-
+    return tool_json

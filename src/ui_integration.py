@@ -31,7 +31,6 @@ def prompt_claude_with_images(images, prompt, max_tokens=250):
     print(f"""Prompt: 
           {prompt}
           """)
-    print(f"API Key (first 5 chars): {API_KEY[:5]}...")
     try:
         image_contents = []
         for image in images:

@@ -21,6 +21,7 @@ from typing import (
 )
 
 import google.generativeai as genai
+from litellm import completion
 import requests
 import vertexai
 import yaml
@@ -402,3 +403,58 @@ def convert_function_to_openai_tool(func):
         },
     }
     return tool_json
+
+
+import json
+import re
+
+
+def extract_json(response) -> dict | None:
+    """Extracts the first valid JSON-like substring from a LLM response."""
+    # Find all JSON-like substrings
+    json_pattern = r'\{(?:[^{}]|(?R))*\}'
+    json_candidates = re.findall(json_pattern, response, re.DOTALL)
+    
+    # Try to parse each candidate
+    for candidate in json_candidates:
+        try:
+            return json.loads(candidate)
+        except json.JSONDecodeError:
+            continue
+    
+    # If no valid JSON found
+    return None
+
+def create_user_message(prompt: str | None, images_base64: list[str] | None = None) -> dict:
+    content = []
+    if prompt:
+        content += [{"type": "text", "text": prompt}]
+    if images_base64:
+        for img in images_base64:
+            content += [
+                {
+                    "type": "image_url",
+                    "image_url": {"url": f"data:image/jpeg;base64,{img}"},
+                }
+            ]
+    return {"role": "user", "content": content}
+
+def create_assistant_message(text: str) -> dict:
+    return {"role": "assistant", "content": text}
+
+def fix_json_regex(json_str: str) -> str:
+    """Fixes JSON-like strings that are missing quotes around keys."""
+    return re.sub(r'([a-zA-Z_][a-zA-Z0-9_]*):', r'"\1":', json_str)
+
+def extract_and_fix_json_llm_call(json_str: str) -> str:
+    prompt = f"""Here is a text that contains a JSON-like string:\n\n{json_str}\n\n Check if the JSON has any syntax issues and if so, fix them and return only the fixed JSON string."""
+    response = completion(
+        model="gpt-4o",
+        # model="gpt-3.5-turbo-0125",
+        messages=[create_user_message(prompt=prompt)],
+        temperature=0.0,
+        response_format={"type": "json_object"} # forces the LLM to return a JSON object
+    )
+    response_text = response.choices[0].message.content
+    response_json = json.loads(response_text)
+    return response_json

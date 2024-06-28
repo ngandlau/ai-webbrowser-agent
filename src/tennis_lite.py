@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 import pdb
+import re
 import time
 from typing import Annotated, Any, Callable, Literal
 from litellm import completion
@@ -63,34 +64,34 @@ The letters uniquely identify a UI element."""
         "Waiting for the website to respond, which can take a while..."
     )
 
-def extract_information_from_table(
-    screenshot: Annotated[Base64Img, "IGNORE"],
-    task_description: Annotated[str, "IGNORE"],
-    model: Annotated[str, "IGNORE"],
-    temperature: Annotated[float, "IGNORE"],
-) -> LLMAnswer: 
-    """Use this function if you want to reliably extract information from a table or a booking schedule that you see in an image."""
-    prompt = (
-        f"The user wants to solve the following task: {task_description}."
-        " There might be relevant information in the table in the image that I provided you."
-        " First, describe the structure of the table and the type of cell contents there are."
-        " Second, extract the data from each cell in the table and provide the table in a markdown format. "
-        " Try to assign each cell's value to a cell content type."
-        " If a cell looks empty or you are unsure about the cell's content, write 'NOT AVAILABLE' in the cell."
-    )
-    messages = [create_user_message(prompt=prompt, images_base64=[screenshot])]
-    response = completion(
-        model=model,
-        messages=messages,
-        temperature=temperature,
-    )
-    response_text = response.choices[0].message.content
-    return response_text
+# def extract_information_from_table(
+#     screenshot: Annotated[Base64Img, "IGNORE"],
+#     task_description: Annotated[str, "IGNORE"],
+#     model: Annotated[str, "IGNORE"],
+#     temperature: Annotated[float, "IGNORE"],
+# ) -> LLMAnswer: 
+#     """Use this function if you want to reliably extract information from a table or a booking schedule that you see in an image."""
+#     prompt = (
+#         f"The user wants to solve the following task: {task_description}."
+#         " There might be relevant information in the table in the image that I provided you."
+#         " First, describe the structure of the table and the type of cell contents there are."
+#         " Second, extract the data from each cell in the table and provide the table in a markdown format. "
+#         " Try to assign each cell's value to a cell content type."
+#         " If a cell looks empty or you are unsure about the cell's content, write 'NOT AVAILABLE' in the cell."
+#     )
+#     messages = [create_user_message(prompt=prompt, images_base64=[screenshot])]
+#     response = completion(
+#         model=model,
+#         messages=messages,
+#         temperature=temperature,
+#     )
+#     response_text = response.choices[0].message.content
+#     return response_text
 
 name_to_function_map: dict[str, Callable] = {
     scroll.__name__: scroll,
     click.__name__: click,
-    extract_information_from_table.__name__: extract_information_from_table,
+    # extract_information_from_table.__name__: extract_information_from_table,
 }
 tools = [
     {"function": convert_function_to_openai_tool(func), "type": "function"}
@@ -125,25 +126,58 @@ with sync_playwright() as p:
     messages = []
 
     system_msg = """\
-You are an assistant that helps the user solve a task by navigating a website \
-and searching for relevant information on the website. The user will provide \
-you screenshots of the website, and you must help him navigate the website \
-until you find the information needed to answer the user's task. 
+You are an assistant that helps the user check the availability of bookable tennis courts on a website. 
 
-If the provided screenshot of the website has small yellow boxes on top of UI \
-elements, then you must provide an explanation of what you think the UI element
-is for and what kind of page it likely navigates to. \
-The yellow boxes have small letters written inside of them that uniquely
-identify a UI element. Refer to the UI elements by using those letters. \
-For example: 'ee (Home): Likely navigates to the home page of the website'.
+The user will ask you to check for available tennis courts at certain time slots. \
+For example, he might ask whether there are any courts free between 8:00 and 10:00.
 
-You can call tools to navigate the website, for example by clicking, scrolling, or typing. \
-If you see structured data in the screenshot, like a table or a booking schedule,
-make sure to call a relevant tool to reliably extract information from the table. \
+To check for available courts, you must navigate to the right page on the website. \
+You can navigate the website by calling tools, for example you can click, scroll or type. \
+You can only click on ui elements that are marked by small yellow boxes with letters inside. \
+Refer to the UI elements by using those letters.
 
-Every time you respond to the user, provide your step-by-step thought process. \
-When you think you can provide an answer based on the information gathered, 
-give your final answer to the user by writing it inside <ANSWER></ANSWER> tags."""
+The page you need to navigate to is the "Freiplätze" page. You can find the button \
+"Freiplätze" in the navigation bar.
+
+The tennis club has 13 courts. When you see the booking page, you need to check \
+every court. As the user only provides you a small part of the website, you might  \
+need to scroll up or down to see all time slots. \
+
+In the booking table, courts that are bookable are marked as "BUCHEN". All other courts are NOT bookable. \
+If you find any courts that are bookable, provide the court number along with the bookable time slots in the following format:
+
+<ANSWER>
+Court 1:
+- 12:00-12:30
+
+Court 2:
+None
+
+Court 3:
+- 13:00-13:30
+- 13:30-14:00
+</ANSWER>
+
+Here, "None" means that there are no available courts for the requested time slot. \
+Make sure that if you see 3 courts, you provide the information for all 3 courts.  \
+"""
+# You are an assistant that helps the user solve a task by navigating a website \
+# and searching for relevant information on the website. The user will provide \
+# you screenshots of the website, and you must help him navigate the website \
+# until you find the information needed to answer the user's task. 
+
+# If the provided screenshot of the website has small yellow boxes on top of UI \
+# elements, then you must provide an explanation of what you think the UI element
+# is for and what kind of page it likely navigates to. \
+# The yellow boxes have small letters written inside of them that uniquely
+# identify a UI element. Refer to the UI elements by using those letters. \
+# For example: 'ee (Home): Likely navigates to the home page of the website'.
+
+# You can call tools to navigate the website, for example to click, scroll or type.
+
+# Every time you respond to the user, provide your step-by-step thought process. \
+# When you think you can provide an answer based on the information gathered, 
+# give your final answer to the user by writing it inside <ANSWER></ANSWER> tags."""
 
     messages.append({"role": "system", "content": system_msg})
     print(colored(f"\nSystem:\n{system_msg}", color="red"))
@@ -171,7 +205,8 @@ are free for 1 hour between 17:00 and 19:00?"""
             tools=tools,
             tool_choice="auto"
         )
-        print(colored(f"\nAI:\n{response['choices'][0]['message']['content']}", color="magenta"))
+        response_text = response.choices[0].message.content
+        print(colored(f"\nAI:\n{response_text}", color="magenta"))
 
         # check if the LLM has called tools. If so, we need to invoke them
         print(f"\n<< finish_reason: {response.choices[0].finish_reason} >>")
@@ -225,10 +260,21 @@ are free for 1 hour between 17:00 and 19:00?"""
                 tools=tools,
                 tool_choice="auto",
             )
-            print(colored(f"\nAI:\n{response['choices'][0]['message']['content']}", color="magenta"))
+            response_text = response.choices[0].message.content
+            print(colored(f"\nAI:\n{response_text}", color="magenta"))
+
+        # check if the LLM has finished
+        if response_text is not None:
+            if "<ANSWER>" in response_text and "</ANSWER>" in response_text:
+                print(colored(f"<< ANSWER PROVIDED >>", color="green"))
+                pattern = r'<ANSWER>([\s\S]*?)</ANSWER>'
+                match = re.search(pattern, response_text)
+                answer = match.group(1)
+                print(colored(f"\nFINAL ANSWER:\n{answer}", color="green"))
+                break
 
         # create the next screenshot after navigating
-        time.sleep(2)
+        time.sleep(3)
         page.keyboard.press("Escape")
         page.keyboard.press("f")
         screenshot_path = make_screenshot(page=page, screenshot_dir=SCREENSHOT_DIR)

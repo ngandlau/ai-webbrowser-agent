@@ -50,3 +50,10 @@ Thumbs.db
 # venv
 .venv/
 venv
+
+# Ignore virtual environment directories
+.uiedenv/
+env/
+
+# Ignore the gui-automation notebook directory
+notebooks/gui-automation/

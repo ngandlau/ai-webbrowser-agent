@@ -1,5 +1,5 @@
 import base64
-import datetime
+from datetime import datetime
 import io
 import os
 import re
@@ -15,6 +15,19 @@ import random
 from matplotlib import pyplot as plt
 from matplotlib.patches import Rectangle
 from segment_anything import SamAutomaticMaskGenerator, sam_model_registry
+import json
+from pathlib import Path
+import pdb
+import re
+import time
+from typing import Annotated, Any, Callable, Literal
+from litellm import completion
+import os
+from dotenv import load_dotenv
+from playwright.sync_api import Page, sync_playwright
+from termcolor import colored
+
+from src.utils import convert_function_to_openai_tool, create_user_message, encode_image, make_screenshot
 
 # Replace with your actual API key
 client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
@@ -142,11 +155,11 @@ def segment_image(image_path):
     mask_generator = SamAutomaticMaskGenerator(
         sam,
         points_per_side=15,  # Higher: more detail but slower; Lower: faster but may miss small objects
-        pred_iou_thresh=0.90,  # Higher: better quality masks but fewer; Lower: more masks but lower quality
-        stability_score_thresh=0.97,  # Higher: more stable masks but fewer; Lower: more masks but less stable
-        crop_n_layers=1,  # More layers help with large images; 0 for no cropping
-        crop_n_points_downscale_factor=2,  # Higher: faster for crops but less detail; Lower: more detailed crops
-        min_mask_region_area=100,  # Higher: removes small segments; Lower: keeps small details but may add noise
+        pred_iou_thresh=0.8,  # Higher: better quality masks but fewer; Lower: more masks but lower quality
+        stability_score_thresh=0.5,  # Higher: more stable masks but fewer; Lower: more masks but less stable
+        crop_n_layers=0,  # More layers help with large images; 0 for no cropping
+        crop_n_points_downscale_factor=10,  # Higher: faster for crops but less detail; Lower: more detailed crops
+        min_mask_region_area=130,  # Higher: removes small segments; Lower: keeps small details but may add noise
     )
     masks = mask_generator.generate(image)
     return masks
@@ -169,11 +182,53 @@ def calculate_number_positions(anns):
     return positions
 
 def find_target_coordinates_for_image(image_path, task):
-    image_path = 'ressources/input/safo2.png'
+    print("Segmenting image (this may take a while)...")
     masks = segment_image(image_path)
+    print("Drawing segments and numbers...")
     coordinates = calculate_number_positions(masks)
     segmented_image_path = draw_rectangles_and_save_image(image_path, masks, coordinates)
-
+    print("Asking for target coordinates...")
     task = "Book the field P2 at 17:00pm."
     result = ask_for_target_coordinates_for_segmented_image(segmented_image_path, task, coordinates)
     return result
+
+
+
+# SCREENSHOT_DIR = "screenshots"
+# PLAYWRIGHT_USER_DATA_DIRECTORY = os.path.expanduser("~/playwright_user_data")
+# VIMIUM_PATH = "vimium"  # vimium must be downloaded via google-extension-downloader and unzipped into this project's directory
+
+# with sync_playwright() as p:
+#     browser = p.chromium.launch_persistent_context(
+#         user_data_dir=PLAYWRIGHT_USER_DATA_DIRECTORY,
+#         headless=False,
+#         args=[
+#             f"--disable-extensions-except={VIMIUM_PATH}",
+#             f"--load-extension={VIMIUM_PATH}",
+#         ],
+#         viewport={"width": 760, "height": 800},
+#         screen={"width": 760, "height": 800},
+#     )
+
+#     # navigate to booking site
+#     page = browser.new_page()
+#     # page.goto("https://safo.ebusy.de")
+#     page.goto("https://safo.ebusy.de/lite-module/407")
+#     time.sleep(2)
+
+
+#     # make a screenshot
+#     page.keyboard.press("Escape")
+#     page.keyboard.press("f")
+#     screenshot_path = make_screenshot(page=page, screenshot_dir=SCREENSHOT_DIR)
+#     screenshot_base64 = encode_image(screenshot_path)
+    
+#     coordinates = find_target_coordinates_for_image(screenshot_path.as_posix(), "Book the field P2 at 17:00pm.")
+#     print(coordinates)
+#     # {'x': 25, 'y': 598}
+#     page.mouse.click(coordinates['x'], coordinates['y'])
+#     time.sleep(3)
+#     page.keyboard.press("f")
+    
+    
+    
